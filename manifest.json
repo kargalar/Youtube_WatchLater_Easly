@@ -1,0 +1,44 @@
+{
+    "manifest_version": 3,
+    "name": "YouTube Watch Later Easy",
+    "version": "2.0",
+    "description": "YouTube videolarına sağ tıklayarak kolayca Watch Later'a ekleyin veya playlistten kaldırın",
+    
+    "permissions": [
+        "tabs",
+        "scripting",
+        "notifications"
+    ],
+    
+    "host_permissions": [
+        "https://www.youtube.com/*",
+        "https://youtube.com/*"
+    ],
+    
+    "background": {
+        "service_worker": "background.js"
+    },
+    
+    "content_scripts": [
+        {
+            "matches": [
+                "https://www.youtube.com/*",
+                "https://youtube.com/*"
+            ],
+            "js": ["content.js"],
+            "run_at": "document_end"
+        }
+    ],
+    
+    "action": {
+        "default_popup": "popup.html",
+        "default_title": "YouTube Watch Later Easy"
+    },
+    
+    "web_accessible_resources": [
+        {
+            "resources": ["help.html"],
+            "matches": ["https://www.youtube.com/*", "https://youtube.com/*"]
+        }
+    ]
+}
