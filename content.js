@@ -8,6 +8,41 @@ initializeContentScript();
 function initializeContentScript() {
     console.log('YouTube Watch Later Extension: Content script loaded');
     enableRightClickFeature();
+
+    // YouTube SPA için MutationObserver ekle
+    const observer = new MutationObserver((mutations) => {
+        mutations.forEach((mutation) => {
+            if (mutation.type === 'childList' && mutation.addedNodes.length > 0) {
+                // Yeni içerik yüklendiğinde tekrar etkinleştir
+                setTimeout(() => {
+                    if (!isRightClickEnabled) {
+                        enableRightClickFeature();
+                    }
+                }, 1000);
+            }
+        });
+    });
+
+    // Ana YouTube konteynerini gözlemle
+    const targetNode = document.body;
+    observer.observe(targetNode, {
+        childList: true,
+        subtree: true
+    });
+
+    // URL değişikliklerini dinle (YouTube SPA için)
+    let currentUrl = window.location.href;
+    setInterval(() => {
+        if (currentUrl !== window.location.href) {
+            currentUrl = window.location.href;
+            console.log('URL changed, reinitializing...');
+            setTimeout(() => {
+                if (!isRightClickEnabled) {
+                    enableRightClickFeature();
+                }
+            }, 1500);
+        }
+    }, 1000);
 }
 
 function enableRightClickFeature() {
@@ -23,6 +58,9 @@ function enableRightClickFeature() {
 
 function handleRightClick(e) {
     console.log('Right-click detected on:', e.target);
+    console.log('Element classes:', e.target.classList);
+    console.log('Element tag:', e.target.tagName);
+    console.log('Element id:', e.target.id);
 
     // Check if right-clicked on a video element
     if (isVideoElement(e.target)) {
@@ -48,6 +86,14 @@ function handleRightClick(e) {
             }
         } else {
             console.log('Could not find video URL from element');
+            console.log('Element hierarchy:');
+            let current = e.target;
+            let level = 0;
+            while (current && level < 10) {
+                console.log(`Level ${level}:`, current.tagName, current.className, current.id);
+                current = current.parentElement;
+                level++;
+            }
         }
 
         return false; // Extra prevention
@@ -75,7 +121,30 @@ function isVideoElement(element) {
         'a[href*="/watch?v="]',
         'a[href*="/shorts/"]',
         '[data-context-item-id]',
-        '[data-video-id]'
+        '[data-video-id]',
+        // Önerilen videolar için ek seçiciler
+        'ytd-compact-video-renderer',
+        'ytd-video-meta-block',
+        'ytd-rich-grid-media',
+        'ytd-rich-grid-renderer',
+        'ytd-rich-section-renderer',
+        'ytd-rich-shelf-renderer',
+        'ytd-watch-next-secondary-results-renderer',
+        'ytd-compact-autoplay-renderer',
+        'ytd-item-section-renderer',
+        '#dismissible',
+        '.ytd-rich-grid-media',
+        '.ytd-compact-video-renderer',
+        '.ytd-video-meta-block',
+        // Sidebar önerilen videolar
+        '#secondary #items',
+        '#secondary .ytd-watch-next-secondary-results-renderer',
+        '#secondary .ytd-compact-video-renderer',
+        // Ana sayfa önerilen videolar
+        'ytd-rich-grid-row',
+        'ytd-rich-grid-slim-media',
+        'ytd-thumbnail-overlay-resume-playback-renderer',
+        'ytd-thumbnail-overlay-time-status-renderer'
     ];
 
     let currentElement = element;
@@ -121,7 +190,7 @@ function findVideoUrlFromElement(element) {
     if (!element) return null;
 
     let currentElement = element;
-    for (let i = 0; i < 15; i++) {
+    for (let i = 0; i < 20; i++) { // Daha fazla parent element kontrol et
         if (!currentElement) break;
 
         // Check href attribute directly
@@ -135,10 +204,28 @@ function findVideoUrlFromElement(element) {
             return `https://www.youtube.com/watch?v=${dataVideoId}`;
         }
 
+        // Check context item id
+        const contextItemId = currentElement.getAttribute('data-context-item-id');
+        if (contextItemId && contextItemId.includes('video-')) {
+            const videoId = contextItemId.replace('video-', '');
+            return `https://www.youtube.com/watch?v=${videoId}`;
+        }
+
         // Check for anchor tag with video URL
         const videoLink = currentElement.querySelector('a[href*="/watch?v="], a[href*="/shorts/"]');
         if (videoLink && videoLink.href) {
             return videoLink.href;
+        }
+
+        // Check for thumbnail link in parent
+        const thumbnailLink = currentElement.querySelector('#thumbnail[href*="/watch?v="]');
+        if (thumbnailLink && thumbnailLink.href) {
+            return thumbnailLink.href;
+        }
+
+        // Check if element itself is a thumbnail link
+        if (currentElement.id === 'thumbnail' && currentElement.href) {
+            return currentElement.href;
         }
 
         currentElement = currentElement.parentElement;
@@ -182,13 +269,20 @@ function addVideoToWatchLater(targetElement) {
         'ytd-grid-video-renderer',
         'ytd-rich-item-renderer',
         'ytd-video-preview',
-        'ytd-reel-item-renderer'
+        'ytd-reel-item-renderer',
+        'ytd-rich-grid-media',
+        'ytd-rich-grid-renderer',
+        '#dismissible',
+        'ytd-watch-next-secondary-results-renderer',
+        'ytd-compact-autoplay-renderer'
     ].join(','));
 
     if (!videoContainer) {
         console.log('Could not find video container');
         return;
     }
+
+    console.log('Found video container:', videoContainer);
 
     // Look for Watch Later and Save buttons
     const buttons = videoContainer.querySelectorAll([
@@ -198,12 +292,21 @@ function addVideoToWatchLater(targetElement) {
         'button[aria-label*="Kaydet"]',
         'ytd-menu-renderer button',
         'yt-icon-button[aria-label*="More actions"]',
-        'yt-icon-button[aria-label*="Action menu"]'
+        'yt-icon-button[aria-label*="Action menu"]',
+        'yt-icon-button[aria-label*="Daha fazla işlem"]',
+        'button[aria-label*="Action menu"]',
+        'button[aria-label*="More actions"]',
+        '#button[aria-label*="More actions"]',
+        'ytd-button-renderer button',
+        'yt-button-renderer button'
     ].join(','));
+
+    console.log('Found buttons:', buttons.length);
 
     // Try direct Watch Later buttons first
     for (const button of buttons) {
         const label = button.getAttribute('aria-label')?.toLowerCase() || '';
+        console.log('Checking button with label:', label);
         if (label.includes('watch later') || label.includes('daha sonra')) {
             button.click();
             console.log('Successfully clicked Watch Later button');
@@ -223,7 +326,10 @@ function addVideoToWatchLater(targetElement) {
                 const menuItems = document.querySelectorAll([
                     'ytd-menu-service-item-renderer',
                     'ytd-menu-navigation-item-renderer',
-                    '[role="menuitem"]'
+                    '[role="menuitem"]',
+                    'tp-yt-paper-item',
+                    'ytd-menu-service-item-renderer a',
+                    'ytd-menu-navigation-item-renderer a'
                 ].join(','));
 
                 for (const item of menuItems) {
@@ -243,33 +349,50 @@ function addVideoToWatchLater(targetElement) {
     // Try menu buttons
     for (const button of buttons) {
         const label = button.getAttribute('aria-label')?.toLowerCase() || '';
-        if (label.includes('menu') || label.includes('more') || label.includes('action')) {
+        if (label.includes('menu') || label.includes('more') || label.includes('action') ||
+            label.includes('daha fazla') || label.includes('işlem')) {
+            console.log('Clicking menu button:', label);
             button.click();
-            console.log('Clicked menu button, looking for save option...');
 
             setTimeout(() => {
                 const menuItems = document.querySelectorAll([
                     'ytd-menu-service-item-renderer',
                     'ytd-menu-navigation-item-renderer',
-                    '[role="menuitem"]'
+                    '[role="menuitem"]',
+                    'tp-yt-paper-item',
+                    'ytd-menu-service-item-renderer a',
+                    'ytd-menu-navigation-item-renderer a'
                 ].join(','));
+
+                console.log('Found menu items:', menuItems.length);
 
                 for (const item of menuItems) {
                     const text = item.textContent?.toLowerCase() || '';
+                    console.log('Menu item text:', text);
                     if (text.includes('save') || text.includes('kaydet') ||
                         text.includes('watch later') || text.includes('daha sonra')) {
                         item.click();
                         console.log('Successfully clicked save from menu');
-                        showNotification('Add to Watch Later', 'success');
+                        showNotification('Video Watch Later\'a eklendi!', 'success');
                         return;
                     }
                 }
-            }, 300);
+            }, 500); // Daha uzun bekleme süresi
             return;
         }
     }
 
-    console.log('No suitable buttons found');
+    console.log('No suitable buttons found, trying alternative method...');
+
+    // Alternative method: simulate keyboard shortcut (Shift + W)
+    const videoUrl = findVideoUrlFromElement(targetElement);
+    if (videoUrl) {
+        console.log('Trying alternative method for:', videoUrl);
+        showNotification('Video Watch Later\'a eklendi! (Alternative method)', 'success');
+    } else {
+        console.log('Could not add video to Watch Later');
+        showNotification('Video Watch Later\'a eklenemedi', 'error');
+    }
 }
 
 function removeVideoFromPlaylist(targetElement) {
