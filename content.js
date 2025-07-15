@@ -23,6 +23,10 @@ function enableRightClickFeature() {
 
 function handleRightClick(e) {
     console.log('Right-click detected on:', e.target);
+    console.log('Element tag:', e.target.tagName);
+    console.log('Element class:', e.target.className);
+    console.log('Element id:', e.target.id);
+    console.log('Current URL:', window.location.href);
 
     // Check if right-clicked on a video element
     if (isVideoElement(e.target)) {
@@ -59,18 +63,45 @@ function handleRightClick(e) {
 function isVideoElement(element) {
     if (!element) return false;
 
-    const videoSelectors = [
+    const currentUrl = window.location.href;
+    const isVideoPage = currentUrl.includes('/watch?v=');
+    const isHomePage = window.location.pathname === '/' ||
+        window.location.pathname === '/feed/subscriptions' ||
+        window.location.pathname === '/feed/trending' ||
+        window.location.pathname.includes('/results');
+
+    // Ana sayfada sadece güvenli elementler: thumbnail, img, yt-image
+    if (isHomePage) {
+        const safeTags = [
+            'YTD-THUMBNAIL',
+            'IMG',
+            'YT-IMAGE'
+        ];
+        if (safeTags.includes(element.tagName)) {
+            return true;
+        }
+        // data-context-item-id veya data-video-id attribute'u olanlar
+        if (element.hasAttribute && (element.hasAttribute('data-context-item-id') || element.hasAttribute('data-video-id'))) {
+            return true;
+        }
+        // Link veya başlık gibi diğer elementlerde asla engelleme
+        return false;
+    }
+
+    // Video sayfasında eski mantık devam
+    let videoSelectors = [
         'ytd-thumbnail',
         'yt-image',
         'img[src*="ytimg.com"]',
         'img[src*="i.ytimg.com"]',
-        'ytd-video-renderer',
         'ytd-compact-video-renderer',
-        'ytd-grid-video-renderer',
-        'ytd-rich-item-renderer',
-        'ytd-video-preview',
-        'ytd-playlist-video-renderer',
-        'ytd-reel-item-renderer',
+        'ytd-video-secondary-info-renderer',
+        'ytd-watch-next-secondary-results-renderer',
+        'ytd-item-section-renderer',
+        '#secondary #contents ytd-compact-video-renderer',
+        '#secondary ytd-compact-video-renderer',
+        '#related #contents ytd-compact-video-renderer',
+        '#related ytd-compact-video-renderer',
         'a#thumbnail',
         'a[href*="/watch?v="]',
         'a[href*="/shorts/"]',
@@ -79,41 +110,40 @@ function isVideoElement(element) {
     ];
 
     let currentElement = element;
-    for (let i = 0; i < 15; i++) {
+    for (let i = 0; i < 10; i++) {
         if (!currentElement) break;
-
         for (const selector of videoSelectors) {
             try {
                 if (currentElement.matches && currentElement.matches(selector)) {
                     return true;
                 }
-
                 if (selector.startsWith('.') && currentElement.classList &&
                     currentElement.classList.contains(selector.replace('.', ''))) {
                     return true;
                 }
-
                 if (selector.startsWith('#') && currentElement.id === selector.replace('#', '')) {
                     return true;
                 }
-
-                if (selector.includes('[href*=') && currentElement.href &&
-                    (currentElement.href.includes('/watch?v=') || currentElement.href.includes('/shorts/'))) {
-                    return true;
-                }
-
                 if (selector.includes('[src*=') && currentElement.src &&
                     (currentElement.src.includes('ytimg.com') || currentElement.src.includes('i.ytimg.com'))) {
+                    return true;
+                }
+                if (selector.includes('[data-') && currentElement.hasAttribute) {
+                    const attr = selector.match(/\[([^=]+)=/)?.[1];
+                    if (attr && currentElement.hasAttribute(attr)) {
+                        return true;
+                    }
+                }
+                if (selector.includes('[href*=') && currentElement.href &&
+                    (currentElement.href.includes('/watch?v=') || currentElement.href.includes('/shorts/'))) {
                     return true;
                 }
             } catch (e) {
                 // Ignore selector errors
             }
         }
-
         currentElement = currentElement.parentElement;
     }
-
     return false;
 }
 
@@ -176,30 +206,106 @@ function isInPlaylist() {
 function addVideoToWatchLater(targetElement) {
     console.log('Adding video to Watch Later');
 
-    const videoContainer = targetElement.closest([
-        'ytd-video-renderer',
-        'ytd-compact-video-renderer',
-        'ytd-grid-video-renderer',
-        'ytd-rich-item-renderer',
-        'ytd-video-preview',
-        'ytd-reel-item-renderer'
-    ].join(','));
+    // Sayfa türüne göre container seçicilerini belirle
+    const currentUrl = window.location.href;
+    const isVideoPage = currentUrl.includes('/watch?v=');
+    const isHomePage = window.location.pathname === '/' ||
+        window.location.pathname === '/feed/subscriptions' ||
+        window.location.pathname === '/feed/trending' ||
+        window.location.pathname.includes('/results');
+
+    let containerSelectors = [];
+
+    if (isVideoPage) {
+        // Video sayfasında önerilen videolar için
+        containerSelectors = [
+            'ytd-compact-video-renderer',
+            'ytd-video-secondary-info-renderer',
+            'ytd-watch-next-secondary-results-renderer',
+            'ytd-item-section-renderer',
+            '#secondary ytd-compact-video-renderer',
+            '#related ytd-compact-video-renderer'
+        ];
+    } else {
+        // Ana sayfa için basit container seçiciler
+        containerSelectors = [
+            'ytd-video-renderer',
+            'ytd-compact-video-renderer',
+            'ytd-grid-video-renderer',
+            'ytd-rich-item-renderer',
+            'ytd-reel-item-renderer'
+        ];
+    }
+
+    console.log('Using container selectors for', isVideoPage ? 'video page' : 'home page');
+
+    let videoContainer = targetElement.closest(containerSelectors.join(','));
+
+    // Ana sayfada container bulunamazsa, daha geniş ara
+    if (!videoContainer && isHomePage) {
+        console.log('No container found on home page, searching more broadly');
+
+        let current = targetElement;
+        for (let i = 0; i < 8; i++) {
+            if (!current) break;
+
+            // Video URL'si içeren bir container ara
+            if (current.querySelector && current.querySelector('a[href*="/watch?v="]')) {
+                videoContainer = current;
+                console.log('Found container with video link');
+                break;
+            }
+
+            current = current.parentElement;
+        }
+    }
 
     if (!videoContainer) {
         console.log('Could not find video container');
         return;
     }
 
+    // Ana sayfa için basit button seçiciler
+    let buttonSelectors = [];
+
+    if (isHomePage) {
+        buttonSelectors = [
+            'button[aria-label*="Watch later"]',
+            'button[aria-label*="Daha sonra"]',
+            'button[aria-label*="Save"]',
+            'button[aria-label*="Kaydet"]',
+            'ytd-menu-renderer button',
+            'button[aria-label*="Action menu"]',
+            'button[aria-label*="More actions"]'
+        ];
+    } else {
+        buttonSelectors = [
+            'button[aria-label*="Watch later"]',
+            'button[aria-label*="Daha sonra"]',
+            'button[aria-label*="Save"]',
+            'button[aria-label*="Kaydet"]',
+            'ytd-menu-renderer button',
+            'yt-icon-button[aria-label*="More actions"]',
+            'yt-icon-button[aria-label*="Action menu"]',
+            'button[aria-label*="Add to queue"]',
+            'button[aria-label*="Sıraya ekle"]',
+            '#button[aria-label*="More"]',
+            'ytd-menu-renderer #button',
+            'yt-icon-button#button',
+            '[role="button"]'
+        ];
+    }
+
     // Look for Watch Later and Save buttons
-    const buttons = videoContainer.querySelectorAll([
-        'button[aria-label*="Watch later"]',
-        'button[aria-label*="Daha sonra"]',
-        'button[aria-label*="Save"]',
-        'button[aria-label*="Kaydet"]',
-        'ytd-menu-renderer button',
-        'yt-icon-button[aria-label*="More actions"]',
-        'yt-icon-button[aria-label*="Action menu"]'
-    ].join(','));
+    const buttons = videoContainer.querySelectorAll(buttonSelectors.join(','));
+
+    console.log('Found buttons:', buttons.length);
+
+    // Butonları logla
+    buttons.forEach((btn, index) => {
+        const label = btn.getAttribute('aria-label') || btn.textContent || 'No label';
+        console.log(`Button ${index}: ${label}`);
+    });
 
     // Try direct Watch Later buttons first
     for (const button of buttons) {
