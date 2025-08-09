@@ -7,6 +7,8 @@ initializeContentScript();
 
 function initializeContentScript() {
     console.log('YouTube Watch Later Extension: Content script loaded');
+    // Expose a flag so background can detect we are loaded
+    try { window.ytWatchLaterExtensionLoaded = true; } catch (e) { }
     enableRightClickFeature();
 }
 
@@ -44,7 +46,7 @@ function handleRightClick(e) {
 
             // Check if we're in a playlist
             if (isInPlaylist()) {
-                console.log('In playlist - attempting to remove video');
+                console.log('In playlist - will try to remove; if not possible, fall back to Watch Later');
                 removeVideoFromPlaylist(e.target);
             } else {
                 console.log('Not in playlist - adding to Watch Later');
@@ -65,17 +67,23 @@ function isVideoElement(element) {
 
     const currentUrl = window.location.href;
     const isVideoPage = currentUrl.includes('/watch?v=');
+    const isChannelPage = /\/(?:@|channel\/|c\/|user\/)/.test(window.location.pathname) ||
+        (window.location.pathname === '/browse' && /videos|shorts|streams/.test(new URLSearchParams(location.search).get('view') || ''));
     const isHomePage = window.location.pathname === '/' ||
         window.location.pathname === '/feed/subscriptions' ||
         window.location.pathname === '/feed/trending' ||
         window.location.pathname.includes('/results');
 
-    // Ana sayfada sadece güvenli elementler: thumbnail, img, yt-image
-    if (isHomePage) {
+    // Ana sayfa ve kanal sayfalarında sadece güvenli elementler: thumbnail, img, yt-image
+    if (isHomePage || isChannelPage) {
         const safeTags = [
             'YTD-THUMBNAIL',
             'IMG',
-            'YT-IMAGE'
+            'YT-IMAGE',
+            'YTD-RICH-GRID-MEDIA',
+            'YTD-RICH-ITEM-RENDERER',
+            'YTD-VIDEO-RENDERER',
+            'YTD-GRID-VIDEO-RENDERER'
         ];
         if (safeTags.includes(element.tagName)) {
             return true;
@@ -91,6 +99,9 @@ function isVideoElement(element) {
     // Video sayfasında eski mantık devam
     let videoSelectors = [
         'ytd-thumbnail',
+        'ytd-rich-grid-media',
+        'ytd-rich-item-renderer',
+        'ytd-grid-video-renderer',
         'yt-image',
         'img[src*="ytimg.com"]',
         'img[src*="i.ytimg.com"]',
@@ -209,6 +220,7 @@ function addVideoToWatchLater(targetElement) {
     // Sayfa türüne göre container seçicilerini belirle
     const currentUrl = window.location.href;
     const isVideoPage = currentUrl.includes('/watch?v=');
+    const isChannelPage = /\/(?:@|channel\/|c\/|user\/)/.test(window.location.pathname);
     const isHomePage = window.location.pathname === '/' ||
         window.location.pathname === '/feed/subscriptions' ||
         window.location.pathname === '/feed/trending' ||
@@ -227,17 +239,19 @@ function addVideoToWatchLater(targetElement) {
             '#related ytd-compact-video-renderer'
         ];
     } else {
-        // Ana sayfa için basit container seçiciler
+        // Ana sayfa, kanal, arama vs. için basit container seçiciler
         containerSelectors = [
             'ytd-video-renderer',
             'ytd-compact-video-renderer',
             'ytd-grid-video-renderer',
             'ytd-rich-item-renderer',
-            'ytd-reel-item-renderer'
+            'ytd-rich-grid-media',
+            'ytd-reel-item-renderer',
+            'ytd-playlist-video-renderer'
         ];
     }
 
-    console.log('Using container selectors for', isVideoPage ? 'video page' : 'home page');
+    console.log('Using container selectors for', isVideoPage ? 'video page' : (isChannelPage ? 'channel page' : (isHomePage ? 'home/search' : 'other')));
 
     let videoContainer = targetElement.closest(containerSelectors.join(','));
 
@@ -268,7 +282,7 @@ function addVideoToWatchLater(targetElement) {
     // Ana sayfa için basit button seçiciler
     let buttonSelectors = [];
 
-    if (isHomePage) {
+    if (isHomePage || isChannelPage) {
         buttonSelectors = [
             'button[aria-label*="Watch later"]',
             'button[aria-label*="Daha sonra"]',
@@ -296,7 +310,14 @@ function addVideoToWatchLater(targetElement) {
         ];
     }
 
-    // Look for Watch Later and Save buttons
+    // 1) Önce thumbnail üzerindeki Watch Later overlay butonunu dene (navigasyon yapmaz)
+    if (tryClickOverlayWatchLater(videoContainer)) {
+        console.log('Clicked overlay Watch Later toggle');
+        showNotification('Video Watch Later\'a eklendi!', 'success');
+        return;
+    }
+
+    // 2) Look for Watch Later and Save buttons
     const buttons = videoContainer.querySelectorAll(buttonSelectors.join(','));
 
     console.log('Found buttons:', buttons.length);
@@ -307,7 +328,7 @@ function addVideoToWatchLater(targetElement) {
         console.log(`Button ${index}: ${label}`);
     });
 
-    // Try direct Watch Later buttons first
+    // 3) Try direct Watch Later buttons first
     for (const button of buttons) {
         const label = button.getAttribute('aria-label')?.toLowerCase() || '';
         if (label.includes('watch later') || label.includes('daha sonra')) {
@@ -318,7 +339,7 @@ function addVideoToWatchLater(targetElement) {
         }
     }
 
-    // Try Save buttons
+    // 4) Try Save buttons
     for (const button of buttons) {
         const label = button.getAttribute('aria-label')?.toLowerCase() || '';
         if (label.includes('save') || label.includes('kaydet')) {
@@ -326,21 +347,12 @@ function addVideoToWatchLater(targetElement) {
             console.log('Clicked Save button, looking for Watch Later option...');
 
             setTimeout(() => {
-                const menuItems = document.querySelectorAll([
-                    'ytd-menu-service-item-renderer',
-                    'ytd-menu-navigation-item-renderer',
-                    '[role="menuitem"]'
-                ].join(','));
-
-                for (const item of menuItems) {
-                    const text = item.textContent?.toLowerCase() || '';
-                    if (text.includes('watch later') || text.includes('daha sonra')) {
-                        item.click();
-                        console.log('Successfully clicked Watch Later from menu');
-                        showNotification('Video Watch Later\'a eklendi!', 'success');
-                        return;
-                    }
+                if (clickWatchLaterInOpenUIMenus()) {
+                    console.log('Successfully clicked Watch Later after Save');
+                    showNotification('Video Watch Later\'a eklendi!', 'success');
+                    return;
                 }
+                console.log('Could not find Watch Later in menu after Save');
             }, 300);
             return;
         }
@@ -354,21 +366,25 @@ function addVideoToWatchLater(targetElement) {
             console.log('Clicked menu button, looking for save option...');
 
             setTimeout(() => {
-                const menuItems = document.querySelectorAll([
-                    'ytd-menu-service-item-renderer',
-                    'ytd-menu-navigation-item-renderer',
-                    '[role="menuitem"]'
-                ].join(','));
-
-                for (const item of menuItems) {
-                    const text = item.textContent?.toLowerCase() || '';
-                    if (text.includes('save') || text.includes('kaydet') ||
-                        text.includes('watch later') || text.includes('daha sonra')) {
-                        item.click();
-                        console.log('Successfully clicked save from menu');
-                        showNotification('Add to Watch Later', 'success');
-                        return;
-                    }
+                // First try direct Watch Later in the overflow menu (checkbox item in dialog preferred)
+                if (clickWatchLaterInOpenUIMenus()) {
+                    console.log('Successfully clicked Watch Later from overflow menu');
+                    showNotification('Video Watch Later\'a eklendi!', 'success');
+                    return;
+                }
+                // If not present, try Save option which opens the Add to dialog
+                const saveItem = Array.from(document.querySelectorAll('ytd-menu-service-item-renderer,[role="menuitem"]'))
+                    .find(el => (el.textContent || '').toLowerCase().includes('save') || (el.textContent || '').toLowerCase().includes('kaydet'));
+                if (saveItem) {
+                    saveItem.click();
+                    setTimeout(() => {
+                        if (clickWatchLaterInOpenUIMenus()) {
+                            console.log('Clicked Watch Later from add-to dialog');
+                            showNotification('Video Watch Later\'a eklendi!', 'success');
+                        } else {
+                            console.log('Could not find Watch Later in add-to dialog');
+                        }
+                    }, 300);
                 }
             }, 300);
             return;
@@ -378,8 +394,62 @@ function addVideoToWatchLater(targetElement) {
     console.log('No suitable buttons found');
 }
 
+// Clicks any visible "Watch later / Daha sonra" option in currently open menus or dialogs
+function clickWatchLaterInOpenUIMenus() {
+    // Prefer explicit WL option in the Add to dialog (checkbox entry), avoid navigation items
+    // 1) Newer dialog entries with list id
+    const wlById = document.querySelector('[data-list-id="WL"], ytd-playlist-add-to-option-renderer[playlist-id="WL"]');
+    if (wlById) {
+        const checkbox = wlById.querySelector('tp-yt-paper-checkbox, ytd-checkbox-renderer, #checkbox, button') || wlById;
+        checkbox.click();
+        return true;
+    }
+
+    // 2) Generic checkbox items that mention Watch later (within dialogs only)
+    const dialogRoots = document.querySelectorAll('ytd-add-to-playlist-renderer, ytd-playlist-add-to-dialog-renderer, tp-yt-paper-dialog');
+    for (const root of dialogRoots) {
+        const candidates = root.querySelectorAll('tp-yt-paper-checkbox, ytd-checkbox-renderer, ytd-playlist-add-to-option-renderer, tp-yt-paper-item, yt-formatted-string');
+        for (const el of candidates) {
+            const text = (el.textContent || el.getAttribute('aria-label') || '').toLowerCase();
+            if (text.includes('watch later') || text.includes('daha sonra')) {
+                const clickable = el.querySelector('tp-yt-paper-checkbox, ytd-checkbox-renderer, #checkbox, button') || el;
+                clickable.click();
+                return true;
+            }
+        }
+    }
+
+    // 3) Overflow menu: service items that perform actions (avoid navigation items that open WL page)
+    const serviceItems = document.querySelectorAll('ytd-menu-service-item-renderer,[role="menuitem"]');
+    for (const item of serviceItems) {
+        const text = (item.textContent || item.getAttribute('aria-label') || '').toLowerCase();
+        if (text.includes('watch later') || text.includes('daha sonra')) {
+            // Ensure it's not a link to /playlist?list=WL
+            const anchor = item.closest('a');
+            if (anchor && /list=WL/.test(anchor.href || '')) {
+                continue; // skip navigation to WL
+            }
+            (item.querySelector('button, tp-yt-paper-item') || item).click();
+            return true;
+        }
+    }
+    return false;
+}
+
+// Try to click the overlay watch later toggle on thumbnails to avoid navigation
+function tryClickOverlayWatchLater(container) {
+    if (!container) return false;
+    // Common overlay renderer for Watch Later on thumbnails
+    const overlayBtn = container.querySelector('ytd-thumbnail-overlay-toggle-button-renderer #button, ytd-thumbnail-overlay-toggle-button-renderer button');
+    if (overlayBtn) {
+        overlayBtn.click();
+        return true;
+    }
+    return false;
+}
+
 function removeVideoFromPlaylist(targetElement) {
-    console.log('Removing video from playlist');
+    console.log('Removing video from playlist (with fallback to Watch Later if not removable)');
 
     const videoContainer = targetElement.closest([
         'ytd-playlist-video-renderer',
@@ -390,6 +460,8 @@ function removeVideoFromPlaylist(targetElement) {
 
     if (!videoContainer) {
         console.log('Could not find video container');
+        // Fallback: try add to watch later (e.g., someone else\'s playlist layout)
+        addVideoToWatchLater(targetElement);
         return;
     }
 
@@ -440,12 +512,18 @@ function removeVideoFromPlaylist(targetElement) {
                         return;
                     }
                 }
+                // If remove option not found, assume not own playlist -> try Add to Watch Later instead
+                console.log('No remove option in menu; falling back to Add to Watch Later');
+                // Close menu if open by pressing Escape
+                try { document.activeElement?.blur(); } catch (e) { }
+                addVideoToWatchLater(targetElement);
             }, 300);
             return;
         }
     }
 
-    console.log('No remove buttons found');
+    console.log('No remove buttons found; falling back to Add to Watch Later');
+    addVideoToWatchLater(targetElement);
 }
 
 function showNotification(message, type = 'info') {
