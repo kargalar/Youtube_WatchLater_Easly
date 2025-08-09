@@ -23,11 +23,11 @@ function displayStatus() {
     const statusDescription = document.querySelector('.status-description');
 
     if (statusTitle) {
-        statusTitle.textContent = '🚀 Otomatik Mod Aktif';
+        statusTitle.textContent = '🚀 Auto Mode Enabled';
     }
 
     if (statusDescription) {
-        statusDescription.textContent = 'Videolara sağ tıklayın - otomatik olarak Watch Later\'a eklenir veya playlistten kaldırılır.';
+        statusDescription.textContent = 'Right-click videos — they\'ll be added to Watch Later or removed from playlists automatically.';
     }
 }
 

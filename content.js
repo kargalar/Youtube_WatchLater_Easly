@@ -313,7 +313,7 @@ function addVideoToWatchLater(targetElement) {
     // 1) Önce thumbnail üzerindeki Watch Later overlay butonunu dene (navigasyon yapmaz)
     if (tryClickOverlayWatchLater(videoContainer)) {
         console.log('Clicked overlay Watch Later toggle');
-        showNotification('Video Watch Later\'a eklendi!', 'success');
+        showNotification('Added to Watch Later!', 'success');
         return;
     }
 
@@ -334,7 +334,7 @@ function addVideoToWatchLater(targetElement) {
         if (label.includes('watch later') || label.includes('daha sonra')) {
             button.click();
             console.log('Successfully clicked Watch Later button');
-            showNotification('Video Watch Later\'a eklendi!', 'success');
+            showNotification('Added to Watch Later!', 'success');
             return;
         }
     }
@@ -349,7 +349,7 @@ function addVideoToWatchLater(targetElement) {
             setTimeout(() => {
                 if (clickWatchLaterInOpenUIMenus()) {
                     console.log('Successfully clicked Watch Later after Save');
-                    showNotification('Video Watch Later\'a eklendi!', 'success');
+                    showNotification('Added to Watch Later!', 'success');
                     return;
                 }
                 console.log('Could not find Watch Later in menu after Save');
@@ -369,7 +369,7 @@ function addVideoToWatchLater(targetElement) {
                 // First try direct Watch Later in the overflow menu (checkbox item in dialog preferred)
                 if (clickWatchLaterInOpenUIMenus()) {
                     console.log('Successfully clicked Watch Later from overflow menu');
-                    showNotification('Video Watch Later\'a eklendi!', 'success');
+                    showNotification('Added to Watch Later!', 'success');
                     return;
                 }
                 // If not present, try Save option which opens the Add to dialog
@@ -380,7 +380,7 @@ function addVideoToWatchLater(targetElement) {
                     setTimeout(() => {
                         if (clickWatchLaterInOpenUIMenus()) {
                             console.log('Clicked Watch Later from add-to dialog');
-                            showNotification('Video Watch Later\'a eklendi!', 'success');
+                            showNotification('Added to Watch Later!', 'success');
                         } else {
                             console.log('Could not find Watch Later in add-to dialog');
                         }
@@ -508,7 +508,7 @@ function removeVideoFromPlaylist(targetElement) {
                         text.includes('kaldır') || text.includes('sil')) {
                         item.click();
                         console.log('Successfully clicked remove from menu');
-                        showNotification('Video listeden kaldırıldı!', 'error');
+                        showNotification('Video removed from playlist!', 'error');
                         return;
                     }
                 }

@@ -2,7 +2,7 @@
     "manifest_version": 3,
     "name": "YouTube Watch Later Easy",
     "version": "2.0",
-    "description": "YouTube videolarına sağ tıklayarak kolayca Watch Later'a ekleyin veya playlistten kaldırın",
+    "description": "Right-click YouTube videos to quickly add to Watch Later or remove from playlists",
     
     "permissions": [
         "tabs",

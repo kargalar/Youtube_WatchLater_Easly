@@ -1,97 +1,90 @@
 # YouTube Watch Later Extension - Enhanced Right-Click Features
 
-## İyileştirmeler (Improvements)
+## Improvements
 
-### 1. Otomatik Sağ Tık Menü Sistemi
-- **Playlist'te değilken**: Video thumbnail'ine sağ tıkladığınızda otomatik olarak "Save to Watch Later" seçeneğini bulur ve tıklar
-- **Playlist'te iken**: Video thumbnail'ine sağ tıkladığınızda otomatik olarak "Remove from playlist" seçeneğini bulur ve tıklar
+### 1. Automatic Right-Click Menu System
+- When not in a playlist: Right-click a video thumbnail and it automatically finds and clicks "Save to Watch Later"
+- When in a playlist: Right-click a video thumbnail and it automatically finds and clicks "Remove from playlist"
 
-### 2. Gelişmiş Context Menu Algılama
-- Türkçe ve İngilizce menü seçeneklerini destekler
-- Farklı YouTube arayüz versiyonlarını destekler
-- Menü bulunamazsa alternatif yöntemler dener
+### 2. Advanced Context Menu Detection
+- Supports English menu options
+- Works across different YouTube UI versions
+- Tries alternative methods if a menu is not found
 
-### 3. Çoklu Strateji Sistemi
-Extension şu yöntemleri sırayla dener:
+### 3. Multi-Strategy System
+The extension tries these methods in order:
 
-#### Watch Later Ekleme İçin:
-1. **Context Menu Method**: Sağ tık menüsünden "Save to Watch Later" seçeneğini bulur
-2. **DOM Manipulation**: Sayfadaki "Save" butonunu bulur ve tıklar
-3. **Keyboard Shortcut**: "W" tuşu kısayolunu kullanır
-4. **Local Storage**: Yerel depolama yöntemi
-5. **Manual Instruction**: Kullanıcıya yol gösterir
+#### For adding to Watch Later:
+1. Context menu method: finds "Save to Watch Later" in the right-click menu
+2. DOM manipulation: finds and clicks the "Save" button on the card
+3. Keyboard shortcut: uses the "W" key
+4. Fallback: guides the user
 
-#### Playlist'ten Kaldırma İçin:
-1. **DOM Manipulation**: "Remove" butonunu bulur ve tıklar
-2. **Keyboard Shortcut**: "Delete" tuşunu kullanır
-3. **Manual Instruction**: Kullanıcıya yol gösterir
+#### For removing from playlists:
+1. DOM manipulation: finds and clicks the "Remove" button
+2. Keyboard shortcut: uses the Delete key
+3. Fallback: guides the user
 
-### 4. Akıllı Playlist Algılama
-- URL'de playlist parametrelerini kontrol eder
-- Sayfadaki playlist öğelerini algılar
-- Playlist durumuna göre doğru aksiyonu alır
+### 4. Smart playlist detection
+- Checks playlist parameters in the URL
+- Detects playlist elements on the page
+- Takes the correct action based on the context
 
-### 5. Gelişmiş Bildirim Sistemi
-- Glassmorphism efektli modern bildirimler
-- Türkçe mesajlar
-- Başarı/hata durumlarında farklı renkler
-- Otomatik kaybolma
+### 5. Notifications
+- Modern glassmorphism-styled notifications
+- Success/error colors
+- Auto dismiss
 
-### 6. Çoklu Dil Desteği
-- Türkçe YouTube arayüzü için özel seçenekler
-- İngilizce YouTube arayüzü için seçenekler
-- Karışık dil desteği
+## Usage
 
-## Kullanım
+1. Auto Mode is on in the popup
+2. On YouTube
+3. Right-click a video thumbnail
+4. The extension performs the correct action automatically
 
-1. **Otomatik Mod**: Extension popup'ında "Otomatik Mod" seçili olmalı
-2. **YouTube'da**: Herhangi bir video sayfasında
-3. **Sağ Tık**: Video thumbnail'ine sağ tıklayın
-4. **Otomatik**: Extension gerekli aksiyonu otomatik olarak alır
+### Scenarios
+- On Home: adds to Watch Later
+- In Playlists: removes from playlist
+- In Search results: adds to Watch Later
+- On Watch page: adds to Watch Later
 
-### Farklı Durumlar:
-- **Ana sayfada video**: Watch Later'a ekler
-- **Playlist'te video**: Playlist'ten kaldırır
-- **Arama sonuçlarında**: Watch Later'a ekler
-- **İzlerken**: Watch Later'a ekler
+## Technical details
 
-## Teknik Detaylar
+### CSS selectors
+- Wide selector support for video containers
+- Multiple selectors for thumbnail elements
+- Comprehensive selectors for menu items
 
-### CSS Selector'ları
-- Video konteynerları için geniş selector desteği
-- Thumbnail öğeleri için multiple selector
-- Menu öğeleri için kapsamlı selector'lar
+### Event handling
+- Uses contextmenu events
+- Uses keyboard shortcuts where applicable
+- Non-blocking async timeouts
 
-### Event Handling
-- MouseEvent simulation için contextmenu
-- KeyboardEvent simulation için tuş kısayolları
-- Timeout management için async handling
-
-### Error Handling
-- Try-catch blocks tüm methodlar için
+### Error handling
+- Try-catch around critical methods
 - Fallback mechanisms
 - Console logging for debugging
 
 ### Performance
 - Minimal DOM queries
-- Efficient selector usage
-- Non-blocking async operations
+- Efficient selectors
+- Non-blocking operations
 
-## Sorun Giderme
+## Troubleshooting
 
-### Video Tanınmıyorsa:
-- Sayfayı yenileyin
-- Extension'ı disable/enable yapın
-- Developer Console'dan hata mesajlarını kontrol edin
+### If a video isn’t detected
+- Refresh the page
+- Disable/enable the extension
+- Check the Developer Console for errors
 
-### Menü Açılmıyorsa:
-- Farklı bir video thumbnail'i deneyin
-- Sayfada biraz bekleyin
-- Zoom level'ini %100 yapın
+### If menus don’t open
+- Try another video thumbnail
+- Wait a bit on the page
+- Set zoom level to 100%
 
-### Bildirim Görünmüyorsa:
-- Ad blocker'ı geçici olarak kapatın
-- Browser zoom'unu kontrol edin
-- Popup blocker ayarlarını kontrol edin
+### If notifications don’t appear
+- Temporarily disable ad blockers
+- Check your browser zoom level
+- Check popup blocker settings
 
-Bu güncellemeler sayesinde extension artık çok daha güvenilir ve kullanıcı dostu bir şekilde çalışmaktadır.
+This extension now works more reliably and is user-friendly.

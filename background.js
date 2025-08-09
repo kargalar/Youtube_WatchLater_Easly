@@ -18,7 +18,7 @@ function showWelcomeNotification() {
         chrome.notifications.create({
             type: 'basic',
             title: 'YouTube Watch Later',
-            message: 'Eklenti başarıyla yüklendi! YouTube\'da videolara sağ tıklayarak kullanabilirsiniz.'
+            message: 'Extension installed successfully! Right-click videos on YouTube to use it.'
         });
     } catch (error) {
         console.log('Could not show notification:', error);
